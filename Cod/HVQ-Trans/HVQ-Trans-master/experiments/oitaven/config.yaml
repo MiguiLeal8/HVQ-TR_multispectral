@@ -1,0 +1,123 @@
+version: v1.0.0
+random_seed: 133
+port: 11111
+
+dataset:
+  # Dataset personalizado para hiperespectrales
+  type: custom
+  root_dir: ../data/z1AD  # Ruta al dataset en formato .pgm
+  normals: [0]  # Etiqueta de datos considerados normales
+  
+  image_reader:
+    type: hyperspectral_reader 
+    kwargs:
+      image_dir: ../data/z1AD/  # Carpeta donde están los .pgm
+      gt_dir: ../data/z1AD/  # Carpeta donde están los .raw
+      normalization: True  # Normalizar entre 0 y 1
+      bands: null  # Usar todas las bandas
+
+  train:
+    meta_file: #../data/MVTec-AD/train.json  # Archivo JSON con metadatos de entrenamiento
+    rebalance: False
+    hflip: False
+    vflip: False
+    rotate: False
+
+  test:
+    meta_file: #../data/MVTec-AD/test.json  # Archivo JSON con metadatos de prueba
+
+  #input_size: [16, 16]  # (Ajustar al tamaño deseado)
+  input_size: [32, 32]  # (Ajustar al tamaño deseado) 
+  pixel_mean: null  # No usar valores predefinidos si los datos son preprocesados
+  pixel_std: null
+  batch_size: 100
+  workers: 4
+
+criterion:
+  - name: FeatureMSELoss
+    type: FeatureMSELoss
+    kwargs:
+      weight: 1.0
+
+trainer:
+  max_epoch: 1
+  clip_max_norm: 0.1
+  val_freq_epoch: 1
+  print_freq_step: 80
+  tb_freq_step: 1
+  lr_scheduler:
+    type: StepLR
+    kwargs:
+      step_size: 800
+      gamma: 0.1
+  optimizer:
+    type: AdamW
+    kwargs:
+      lr: 0.0001
+      betas: [0.9, 0.999]
+      weight_decay: 0.0001
+
+saver:
+  auto_resume: False
+  always_save: False  # Guardar checkpoints en todas las épocas
+  load_path: checkpoints
+  save_dir: checkpoints/HVQ_TR_switch
+  log_dir: log/
+
+evaluator:
+  # Para ejecutar fuera del FinisTerrae III:
+  save_dir: result_eval_temp  
+  # Para ejecutar dentro de FinisTerraeIII:
+  #save_dir: /mnt/lustre/scratch/nlsas/home/<usuario>/result_eval_temp
+  key_metric: mean_max_auc
+  metrics:
+    auc:
+      - name: std
+      - name: max
+        kwargs:
+          avgpool_size: [16, 16]
+      - name: pixel
+  vis_compound:
+    save_dir: checkpoints/HVQ_TR_switch/vis_compound_HVQ_TR_hyperspectral/visual
+    max_score: null
+    min_score: null
+
+frozen_layers: [backbone]
+
+net:
+  - name: backbone
+    type: models.backbones.efficientnet_b4
+    frozen: False
+    kwargs:
+      pretrained: False  # No hay pesos preentrenados para datos multiespectrales
+      outlayers: [1, 2, 3, 4]   #(efficientnet)
+
+  - name: neck
+    prev: backbone
+    type: models.necks.MFCN
+    kwargs:
+      outstrides: [16]
+
+  - name: reconstruction
+    prev: neck
+    type: models.reconstructions.HVQ_TR_switch
+    kwargs:
+      pos_embed_type: learned
+      hidden_dim: 256
+      nhead: 8
+      num_encoder_layers: 4
+      num_decoder_layers: 4
+      dim_feedforward: 1024
+      dropout: 0.1
+      activation: relu
+      normalize_before: False
+      feature_jitter:
+        scale: 20.0
+        prob: 1.0
+      neighbor_mask:
+        neighbor_size: [7, 7]
+        mask: [True, True, True]
+      save_recon:
+        save_dir: result_recon
+      initializer:
+        method: xavier_uniform
