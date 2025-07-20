@@ -1,5 +1,1 @@
-You must go to this [directory](https://gitlab.citius.gal/hiperespectral/galician-rivers-multispectral-anomaly-detection-dataset/-/tree/main/data/z1?ref_type=heads) and download the next files:
-- z1.raw
-- z1_color.ppm
-- z1_gt.ppm
-- z1_gt_reetiquetado.pgm
+You must go to this [directory](https://gitlab.citius.gal/hiperespectral/galician-rivers-multispectral-anomaly-detection-dataset/-/tree/main/data/z1?ref_type=heads) and download the file z1.raw.
